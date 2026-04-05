@@ -17,16 +17,19 @@ export default function App() {
   const [currentResult, setCurrentResult] = useState(null);
 
   useEffect(() => {
+    getRedirectResult(auth)
+      .then(result => {
+        if (result?.user) {
+          setUser(result.user);
+          setLoading(false);
+        }
+      })
+      .catch(console.error);
+
     const unsub = onAuthStateChanged(auth, u => {
       setUser(u);
       setLoading(false);
     });
-
-    getRedirectResult(auth)
-      .then(result => {
-        if (result?.user) setUser(result.user);
-      })
-      .catch(console.error);
 
     return unsub;
   }, []);

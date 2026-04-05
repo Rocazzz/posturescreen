@@ -1,10 +1,15 @@
-import { signInWithRedirect } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { auth, provider } from '../firebase';
 
 export default function Login() {
   async function handleLogin() {
     try {
-      await signInWithRedirect(auth, provider);
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (isMobile) {
+        await signInWithRedirect(auth, provider);
+      } else {
+        await signInWithPopup(auth, provider);
+      }
     } catch (e) {
       console.error(e);
     }
