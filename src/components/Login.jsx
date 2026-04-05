@@ -1,10 +1,10 @@
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithRedirect } from 'firebase/auth';
 import { auth, provider } from '../firebase';
 
 export default function Login() {
   async function handleLogin() {
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithRedirect(auth, provider);
     } catch (e) {
       console.error(e);
     }
