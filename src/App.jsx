@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { collection, addDoc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import Login from './components/Login';
@@ -17,20 +17,10 @@ export default function App() {
   const [currentResult, setCurrentResult] = useState(null);
 
   useEffect(() => {
-    getRedirectResult(auth)
-      .then(result => {
-        if (result?.user) {
-          setUser(result.user);
-          setLoading(false);
-        }
-      })
-      .catch(console.error);
-
     const unsub = onAuthStateChanged(auth, u => {
       setUser(u);
       setLoading(false);
     });
-
     return unsub;
   }, []);
 
@@ -43,7 +33,7 @@ export default function App() {
     );
     const unsub = onSnapshot(q, snap => {
       setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, err => console.error(err));
     return unsub;
   }, [user]);
 

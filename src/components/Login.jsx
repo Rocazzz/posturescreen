@@ -4,14 +4,13 @@ import { auth, provider } from '../firebase';
 export default function Login() {
   async function handleLogin() {
     try {
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (isMobile) {
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      if (e.code === 'auth/popup-blocked') {
         await signInWithRedirect(auth, provider);
       } else {
-        await signInWithPopup(auth, provider);
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
     }
   }
 
@@ -34,7 +33,6 @@ export default function Login() {
           Tamizaje postural · No diagnóstico
         </p>
       </div>
-
       <div style={{
         background: 'var(--surface)',
         borderRadius: 'var(--r)',
@@ -78,7 +76,6 @@ export default function Login() {
           Continuar con Google
         </button>
       </div>
-
       <p style={{ fontSize: '11px', color: 'var(--text3)', textAlign: 'center', lineHeight: '1.6', maxWidth: '280px' }}>
         Esta app realiza tamizaje postural, no diagnóstico médico. Consulta a un profesional de salud ante cualquier hallazgo.
       </p>
