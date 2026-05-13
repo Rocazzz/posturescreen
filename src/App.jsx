@@ -37,22 +37,37 @@ export default function App() {
     return unsub;
   }, [user]);
 
-  async function handleResult(analysis, view) {
-    const entry = {
-      uid: user.uid,
-      date: new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }),
-      view,
-      sta: analysis.sta,
-      tpa: analysis.tpa,
-      cobb: analysis.cobb,
-      cranial: analysis.cranial,
-      classes: analysis.classes,
-      createdAt: Date.now()
-    };
+ async function handleResult(analysis, view) {
+  const entry = {
+    uid: user.uid,
+    date: new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }),
+    view,
+    classes: analysis.classes,
+    createdAt: Date.now(),
+    // Campos vista posterior
+    sta:     analysis.sta     ?? null,
+    tpa:     analysis.tpa     ?? null,
+    cobb:    analysis.cobb    ?? null,
+    cranial: analysis.cranial ?? null,
+    // Campos vista lateral
+    fhp:        analysis.fhp        ?? null,
+    fhpAbs:     analysis.fhpAbs     ?? null,
+    trunkSway:  analysis.trunkSway  ?? null,
+    trunkAbs:   analysis.trunkAbs   ?? null,
+    pelvicTilt: analysis.pelvicTilt ?? null,
+    pelvicAbs:  analysis.pelvicAbs  ?? null,
+    side:       analysis.side       ?? null,
+  };
+
+  try {
     await addDoc(collection(db, 'evaluations'), entry);
     setCurrentResult(entry);
     setTab('results');
+  } catch (e) {
+    console.error('Error guardando:', e);
+    alert('Error al guardar la evaluación');
   }
+}
 
   function handleSelectHistory(entry) {
     setCurrentResult(entry);
