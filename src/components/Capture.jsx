@@ -9,12 +9,12 @@ export default function Capture({ onResult }) {
   const animRef = useRef(null);
   const lastTimeRef = useRef(-1);
   const [view, setView] = useState('posterior');
+  const viewRef = useRef('posterior');
   const [status, setStatus] = useState('Cargando...');
   const [statusType, setStatusType] = useState('waiting');
   const [liveAngles, setLiveAngles] = useState(null);
-  const [ready, setReady] = useState(false);
   const lastResultRef = useRef(null);
-  const { analyze, clearBuffers } = usePoseAnalysis();
+  const { analyzePosterior, analyzeLateral, drawLateralReferences, clearBuffers } = usePoseAnalysis();
 
   useEffect(() => {
     initMediaPipe();
@@ -40,7 +40,6 @@ export default function Capture({ onResult }) {
         minPosePresenceConfidence: 0.5,
         minTrackingConfidence: 0.5
       });
-      setReady(true);
       startCamera();
     } catch (e) {
       setStatus('Error cargando MediaPipe');
@@ -99,11 +98,22 @@ export default function Capture({ onResult }) {
     }
 
     const lm = result.landmarks[0];
-    const dUtils = new DrawingUtils(ctx);
-    dUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: 'rgba(74,63,247,0.6)', lineWidth: 2 });
-    dUtils.drawLandmarks(lm, { color: '#4a3ff7', lineWidth: 1, radius: 4 });
+    const currentView = viewRef.current;
 
-    const analysis = analyze(lm, canvas.width, canvas.height);
+    // Dibujar esqueleto base
+    const dUtils = new DrawingUtils(ctx);
+    dUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: 'rgba(74,63,247,0.5)', lineWidth: 2 });
+    dUtils.drawLandmarks(lm, { color: '#4a3ff7', lineWidth: 1, radius: 3 });
+
+    let analysis;
+    if (currentView === 'posterior') {
+      analysis = analyzePosterior(lm, canvas.width, canvas.height);
+    } else {
+      analysis = analyzeLateral(lm, canvas.width, canvas.height);
+      if (analysis.valid) {
+        drawLateralReferences(ctx, analysis, canvas.width, canvas.height);
+      }
+    }
 
     if (!analysis.valid) {
       setStatus(analysis.reason);
@@ -124,7 +134,7 @@ export default function Capture({ onResult }) {
       alert('Espera a que se detecte una pose');
       return;
     }
-    onResult(lastResultRef.current, view);
+    onResult(lastResultRef.current, viewRef.current);
   }
 
   function handleGallery(e) {
@@ -139,9 +149,15 @@ export default function Capture({ onResult }) {
         alert('No se detectó ninguna pose en la imagen');
         return;
       }
-      const analysis = analyze(result.landmarks[0], img.width, img.height);
-      if (!analysis.valid) { alert('Colócate de frente o de lado'); return; }
-      onResult(analysis, view);
+      const currentView = viewRef.current;
+      let analysis;
+      if (currentView === 'posterior') {
+        analysis = analyzePosterior(result.landmarks[0], img.width, img.height);
+      } else {
+        analysis = analyzeLateral(result.landmarks[0], img.width, img.height);
+      }
+      if (!analysis.valid) { alert('Ajusta la posición e intenta de nuevo'); return; }
+      onResult(analysis, currentView);
     };
     img.src = URL.createObjectURL(file);
     e.target.value = '';
@@ -149,13 +165,34 @@ export default function Capture({ onResult }) {
 
   function handleViewChange(v) {
     setView(v);
+    viewRef.current = v;
     clearBuffers();
+    setLiveAngles(null);
+    lastResultRef.current = null;
+  }
+
+  // Ángulos a mostrar según vista
+  function getLiveAnglesDisplay() {
+    if (!liveAngles) return [];
+    if (liveAngles.view === 'posterior') {
+      return [
+        { label: 'STA',     val: liveAngles.sta },
+        { label: 'TPA',     val: liveAngles.tpa },
+        { label: 'Cobb',    val: liveAngles.cobb },
+        { label: 'Cranial', val: liveAngles.cranial }
+      ];
+    } else {
+      return [
+        { label: 'FHP',         val: liveAngles.fhpAbs },
+        { label: 'Trunk Sway',  val: liveAngles.trunkAbs },
+        { label: 'Pelv. Tilt',  val: liveAngles.pelvicAbs }
+      ];
+    }
   }
 
   const pillColors = {
-    waiting:   { bg: 'rgba(192,41,42,0.85)' },
-    analyzing: { bg: 'rgba(186,117,23,0.85)' },
-    detecting: { bg: 'rgba(58,125,10,0.85)' }
+    waiting:   'rgba(192,41,42,0.85)',
+    analyzing: 'rgba(186,117,23,0.85)',
   };
 
   return (
@@ -185,18 +222,13 @@ export default function Capture({ onResult }) {
           Vista {view}
         </div>
 
-        <div style={{ position: 'absolute', top: '14px', right: '14px', background: pillColors[statusType]?.bg || pillColors.waiting.bg, color: 'white', fontSize: '10px', fontWeight: '500', padding: '5px 12px', borderRadius: '99px', zIndex: 10 }}>
+        <div style={{ position: 'absolute', top: '14px', right: '14px', background: pillColors[statusType] || pillColors.waiting, color: 'white', fontSize: '10px', fontWeight: '500', padding: '5px 12px', borderRadius: '99px', zIndex: 10 }}>
           {status}
         </div>
 
         {liveAngles && (
-          <div style={{ position: 'absolute', bottom: '90px', left: '14px', right: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', zIndex: 10 }}>
-            {[
-              { label: 'STA',     val: liveAngles.sta },
-              { label: 'TPA',     val: liveAngles.tpa },
-              { label: 'Cobb',    val: liveAngles.cobb },
-              { label: 'Cranial', val: liveAngles.cranial }
-            ].map(a => (
+          <div style={{ position: 'absolute', bottom: '90px', left: '14px', right: '14px', display: 'grid', gridTemplateColumns: getLiveAnglesDisplay().length === 4 ? '1fr 1fr' : '1fr 1fr 1fr', gap: '6px', zIndex: 10 }}>
+            {getLiveAnglesDisplay().map(a => (
               <div key={a.label} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: '8px', padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)' }}>{a.label}</span>
                 <span style={{ fontSize: '13px', fontWeight: '500', color: 'white', fontFamily: 'DM Mono' }}>{a.val.toFixed(1)}°</span>
@@ -210,11 +242,9 @@ export default function Capture({ onResult }) {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
             <input type="file" accept="image/*" onChange={handleGallery} style={{ display: 'none' }} />
           </label>
-
           <button onClick={captureAnalysis} style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'white', border: '4px solid rgba(255,255,255,0.4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4a3ff7" strokeWidth="2"><circle cx="12" cy="12" r="8"/></svg>
           </button>
-
           <div style={{ width: '44px' }} />
         </div>
       </div>
