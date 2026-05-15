@@ -28,7 +28,15 @@ export default function Results({ result, onNavigate }) {
     </div>
   );
 
-  const { sta, tpa, cobb, classes, date } = result;
+  const sta  = typeof result.sta  === 'number' ? result.sta  : 0;
+  const tpa  = typeof result.tpa  === 'number' ? result.tpa  : 0;
+  const cobb = typeof result.cobb === 'number' ? result.cobb : 0;
+  const classes = {
+    hombros: result.classes?.hombros ?? 'verde',
+    columna: result.classes?.columna ?? 'verde',
+    pelvis:  result.classes?.pelvis  ?? 'verde',
+  };
+  const { date } = result;
 
   const zones = [
     { label: 'Hombros (STA)',  val: sta,  cls: classes.hombros },
@@ -43,16 +51,29 @@ export default function Results({ result, onNavigate }) {
   const score    = Math.round((normal / 3) * 100);
 
   const recs = [
-    { cls: classes.pelvis,  rojo: `Pelvis con inclinación elevada (${tpa.toFixed(1)}°). Se recomienda valoración por fisioterapia.`,    amarillo: `Inclinación pélvica moderada (${tpa.toFixed(1)}°). Observar evolución.`,                 verde: null },
-    { cls: classes.columna, rojo: `Desviación significativa de columna (${cobb.toFixed(1)}°). Evaluación médica recomendada.`,          amarillo: `Asimetría leve de columna (${cobb.toFixed(1)}°). Evitar cargas asimétricas.`,           verde: null },
-    { cls: classes.hombros, rojo: `Desnivelación marcada de hombros (${sta.toFixed(1)}°). Revisar con especialista.`,                  amarillo: `Leve desnivelación de hombros (${sta.toFixed(1)}°). Observar postura habitual.`,        verde: null },
+    {
+      cls: classes.pelvis,
+      rojo:     `Pelvis con inclinación elevada (${tpa.toFixed(1)}°). Se recomienda valoración por fisioterapia.`,
+      amarillo: `Inclinación pélvica moderada (${tpa.toFixed(1)}°). Observar evolución.`,
+    },
+    {
+      cls: classes.columna,
+      rojo:     `Desviación significativa de columna (${cobb.toFixed(1)}°). Evaluación médica recomendada.`,
+      amarillo: `Asimetría leve de columna (${cobb.toFixed(1)}°). Evitar cargas asimétricas.`,
+    },
+    {
+      cls: classes.hombros,
+      rojo:     `Desnivelación marcada de hombros (${sta.toFixed(1)}°). Revisar con especialista.`,
+      amarillo: `Leve desnivelación de hombros (${sta.toFixed(1)}°). Observar postura habitual.`,
+    },
   ];
 
   const recColors = {
     rojo:     { border: 'var(--red)',   bg: 'var(--red-bg)',   text: 'var(--red)'   },
     amarillo: { border: '#BA7517',      bg: 'var(--amber-bg)', text: 'var(--amber)' },
-    verde:    { border: 'var(--green)', bg: 'var(--green-bg)', text: 'var(--green)' },
   };
+
+  const todasNormales = allClasses.every(v => v === 'verde');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -90,14 +111,20 @@ export default function Results({ result, onNavigate }) {
 
         <div style={{ background: 'var(--surface)', borderRadius: 'var(--r)', border: '1px solid var(--border)', padding: '16px' }}>
           <p style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text2)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Recomendaciones de screening</p>
-          {recs.filter(r => r[r.cls]).map((r, i) => {
-            const c = recColors[r.cls];
-            return (
-              <div key={i} style={{ borderLeft: `3px solid ${c.border}`, background: c.bg, borderRadius: '0 var(--r-sm) var(--r-sm) 0', padding: '10px 12px', marginBottom: '8px' }}>
-                <p style={{ fontSize: '12px', lineHeight: '1.6', color: c.text }}>{r[r.cls]}</p>
-              </div>
-            );
-          })}
+          {todasNormales ? (
+            <p style={{ fontSize: '12px', color: 'var(--green)', lineHeight: '1.6' }}>
+              ✓ Hombros, columna y pelvis alineados. Aún así, se recomienda revisiones semestrales.
+            </p>
+          ) : (
+            recs.filter(r => r.cls !== 'verde').map((r, i) => {
+              const c = recColors[r.cls];
+              return (
+                <div key={i} style={{ borderLeft: `3px solid ${c.border}`, background: c.bg, borderRadius: '0 var(--r-sm) var(--r-sm) 0', padding: '10px 12px', marginBottom: '8px' }}>
+                  <p style={{ fontSize: '12px', lineHeight: '1.6', color: c.text }}>{r[r.cls]}</p>
+                </div>
+              );
+            })
+          )}
         </div>
 
         <button onClick={() => onNavigate('capture')} style={{ background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--r-sm)', padding: '14px', fontSize: '15px', fontWeight: '500', fontFamily: 'DM Sans', cursor: 'pointer', width: '100%' }}>
@@ -107,6 +134,7 @@ export default function Results({ result, onNavigate }) {
         <p style={{ fontSize: '11px', color: 'var(--text3)', textAlign: 'center', lineHeight: '1.6', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--r-sm)' }}>
           Este tamizaje no constituye diagnóstico médico. Deriva a profesional de salud ante hallazgos relevantes.
         </p>
+
       </div>
     </div>
   );
