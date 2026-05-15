@@ -8,13 +8,11 @@ export default function Capture({ onResult }) {
   const landmarkerRef = useRef(null);
   const animRef = useRef(null);
   const lastTimeRef = useRef(-1);
-  const [view, setView] = useState('posterior');
-  const viewRef = useRef('posterior');
   const [status, setStatus] = useState('Cargando...');
   const [statusType, setStatusType] = useState('waiting');
   const [liveAngles, setLiveAngles] = useState(null);
   const lastResultRef = useRef(null);
-  const { analyzePosterior, analyzeLateral, drawLateralReferences, clearBuffers } = usePoseAnalysis();
+  const { analyze, clearBuffers } = usePoseAnalysis();
 
   useEffect(() => {
     initMediaPipe();
@@ -89,7 +87,12 @@ export default function Capture({ onResult }) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    ctx.save();
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+
     if (!result.landmarks || result.landmarks.length === 0) {
+      ctx.restore();
       setStatus('Sin detección');
       setStatusType('waiting');
       setLiveAngles(null);
@@ -98,22 +101,13 @@ export default function Capture({ onResult }) {
     }
 
     const lm = result.landmarks[0];
-    const currentView = viewRef.current;
-
-    // Dibujar esqueleto base
     const dUtils = new DrawingUtils(ctx);
-    dUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: 'rgba(74,63,247,0.5)', lineWidth: 2 });
-    dUtils.drawLandmarks(lm, { color: '#4a3ff7', lineWidth: 1, radius: 3 });
+    dUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: 'rgba(74,63,247,0.6)', lineWidth: 2 });
+    dUtils.drawLandmarks(lm, { color: '#4a3ff7', lineWidth: 1, radius: 4 });
 
-    let analysis;
-    if (currentView === 'posterior') {
-      analysis = analyzePosterior(lm, canvas.width, canvas.height);
-    } else {
-      analysis = analyzeLateral(lm, canvas.width, canvas.height);
-      if (analysis.valid) {
-        drawLateralReferences(ctx, analysis, canvas.width, canvas.height);
-      }
-    }
+    const analysis = analyze(lm, canvas.width, canvas.height);
+
+    ctx.restore();
 
     if (!analysis.valid) {
       setStatus(analysis.reason);
@@ -134,7 +128,7 @@ export default function Capture({ onResult }) {
       alert('Espera a que se detecte una pose');
       return;
     }
-    onResult(lastResultRef.current, viewRef.current);
+    onResult(lastResultRef.current);
   }
 
   function handleGallery(e) {
@@ -149,45 +143,12 @@ export default function Capture({ onResult }) {
         alert('No se detectó ninguna pose en la imagen');
         return;
       }
-      const currentView = viewRef.current;
-      let analysis;
-      if (currentView === 'posterior') {
-        analysis = analyzePosterior(result.landmarks[0], img.width, img.height);
-      } else {
-        analysis = analyzeLateral(result.landmarks[0], img.width, img.height);
-      }
-      if (!analysis.valid) { alert('Ajusta la posición e intenta de nuevo'); return; }
-      onResult(analysis, currentView);
+      const analysis = analyze(result.landmarks[0], img.width, img.height);
+      if (!analysis.valid) { alert('Colócate de frente a la cámara'); return; }
+      onResult(analysis);
     };
     img.src = URL.createObjectURL(file);
     e.target.value = '';
-  }
-
-  function handleViewChange(v) {
-    setView(v);
-    viewRef.current = v;
-    clearBuffers();
-    setLiveAngles(null);
-    lastResultRef.current = null;
-  }
-
-  // Ángulos a mostrar según vista
-  function getLiveAnglesDisplay() {
-    if (!liveAngles) return [];
-    if (liveAngles.view === 'posterior') {
-      return [
-        { label: 'STA',     val: liveAngles.sta },
-        { label: 'TPA',     val: liveAngles.tpa },
-        { label: 'Cobb',    val: liveAngles.cobb },
-        { label: 'Cranial', val: liveAngles.cranial }
-      ];
-    } else {
-      return [
-        { label: 'FHP',         val: liveAngles.fhpAbs },
-        { label: 'Trunk Sway',  val: liveAngles.trunkAbs },
-        { label: 'Pelv. Tilt',  val: liveAngles.pelvicAbs }
-      ];
-    }
   }
 
   const pillColors = {
@@ -199,27 +160,15 @@ export default function Capture({ onResult }) {
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div style={{ background: 'var(--surface)', padding: '16px 20px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <h1 style={{ fontSize: '20px', fontWeight: '600', letterSpacing: '-0.3px' }}>Nueva evaluación</h1>
-        <p style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>Posiciona a 2–3 metros de la cámara</p>
-      </div>
-
-      <div style={{ display: 'flex', gap: '8px', padding: '12px 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        {['posterior', 'lateral'].map(v => (
-          <button key={v} onClick={() => handleViewChange(v)} style={{
-            flex: 1, padding: '8px', borderRadius: 'var(--r-sm)', fontSize: '13px', fontWeight: '500',
-            fontFamily: 'DM Sans', cursor: 'pointer', border: '1px solid',
-            borderColor: view === v ? '#afa9ec' : 'var(--border2)',
-            background: view === v ? 'var(--accent-light)' : 'var(--surface2)',
-            color: view === v ? 'var(--accent)' : 'var(--text2)'
-          }}>Vista {v}</button>
-        ))}
+        <p style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>Posiciona a 2–3 metros de la cámara · Vista posterior</p>
       </div>
 
       <div style={{ flex: 1, position: 'relative', background: '#0a0a12', overflow: 'hidden' }}>
         <video ref={videoRef} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-        <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform: 'scaleX(-1)' }} />
+        <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} />
 
         <div style={{ position: 'absolute', top: '14px', left: '14px', background: 'rgba(74,63,247,0.85)', color: 'white', fontSize: '11px', fontWeight: '500', padding: '5px 12px', borderRadius: '99px', zIndex: 10 }}>
-          Vista {view}
+          Vista posterior
         </div>
 
         <div style={{ position: 'absolute', top: '14px', right: '14px', background: pillColors[statusType] || pillColors.waiting, color: 'white', fontSize: '10px', fontWeight: '500', padding: '5px 12px', borderRadius: '99px', zIndex: 10 }}>
@@ -227,8 +176,12 @@ export default function Capture({ onResult }) {
         </div>
 
         {liveAngles && (
-          <div style={{ position: 'absolute', bottom: '90px', left: '14px', right: '14px', display: 'grid', gridTemplateColumns: getLiveAnglesDisplay().length === 4 ? '1fr 1fr' : '1fr 1fr 1fr', gap: '6px', zIndex: 10 }}>
-            {getLiveAnglesDisplay().map(a => (
+          <div style={{ position: 'absolute', bottom: '90px', left: '14px', right: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', zIndex: 10 }}>
+            {[
+              { label: 'STA',  val: liveAngles.sta  },
+              { label: 'TPA',  val: liveAngles.tpa  },
+              { label: 'Cobb', val: liveAngles.cobb },
+            ].map(a => (
               <div key={a.label} style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', borderRadius: '8px', padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)' }}>{a.label}</span>
                 <span style={{ fontSize: '13px', fontWeight: '500', color: 'white', fontFamily: 'DM Mono' }}>{a.val.toFixed(1)}°</span>
